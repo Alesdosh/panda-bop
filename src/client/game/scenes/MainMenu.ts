@@ -4,6 +4,7 @@ export class MainMenu extends Scene {
   background: GameObjects.Image | null = null;
   logo: GameObjects.Image | null = null;
   title: GameObjects.Text | null = null;
+  empezar: GameObjects.Text;
 
   constructor() {
     super('MainMenu');
@@ -23,12 +24,33 @@ export class MainMenu extends Scene {
   create() {
     this.refreshLayout();
 
+    const createButton = (y: number, label: string, color: string, onClick: () => void) => {
+          const button = this.add
+            .text(600, y, label, {
+              fontFamily: 'Arial Black',
+              fontSize: 36,
+              color: color,
+              backgroundColor: '#444444',
+              padding: {
+                x: 25,
+                y: 12,
+              } as Phaser.Types.GameObjects.Text.TextPadding,
+            })
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => button.setStyle({ backgroundColor: '#555555' }))
+            .on('pointerout', () => button.setStyle({ backgroundColor: '#444444' }))
+            .on('pointerdown', onClick);
+          return button;
+        }; // TERMINA CREAR BOTON
+
+    this.empezar = createButton(this.scale.height * 0.6, 'Empezar', '#00ff00', () => {
+      this.scene.start('Game');
+    });
+
     // Re-calculate positions whenever the game canvas is resized (e.g. orientation change).
     this.scale.on('resize', () => this.refreshLayout());
 
-    this.input.once('pointerdown', () => {
-      this.scene.start('Game');
-    });
   }
 
   /**
@@ -51,7 +73,7 @@ export class MainMenu extends Scene {
     const scaleFactor = Math.min(width / 1024, height / 768);
 
     if (!this.logo) {
-      this.logo = this.add.image(0, 0, 'logo');
+      this.logo = this.add.image(100, 100, 'logo');
     }
     this.logo!.setPosition(width / 2, height * 0.38).setScale(scaleFactor);
 
@@ -59,7 +81,7 @@ export class MainMenu extends Scene {
     const baseFontSize = 38;
     if (!this.title) {
       this.title = this.add
-        .text(0, 0, 'Main Menu', {
+        .text(0, 0, 'Menu Principal', {
           fontFamily: 'Arial Black',
           fontSize: `${baseFontSize}px`,
           color: '#ffffff',

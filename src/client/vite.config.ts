@@ -3,6 +3,12 @@ import { defineConfig } from 'vite';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   return {
+    // Configuración para desarrollo local
+    server: {
+      port: 3000,
+      host: true,
+      open: true,
+    },
     build: {
       outDir: '../../dist/client',
       sourcemap: true,
