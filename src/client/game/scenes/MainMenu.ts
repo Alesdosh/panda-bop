@@ -10,11 +10,6 @@ export class MainMenu extends Scene {
     super('MainMenu');
   }
 
-  /**
-   * Reset cached GameObject references every time the scene starts.
-   * The same Scene instance is reused by Phaser, so we must ensure
-   * stale (destroyed) objects are cleared out when the scene restarts.
-   */
   init(): void {
     this.background = null;
     this.logo = null;
@@ -23,6 +18,8 @@ export class MainMenu extends Scene {
 
   create() {
     this.refreshLayout();
+
+    // Funcion para crear boton
 
     const createButton = (y: number, label: string, color: string, onClick: () => void) => {
           const button = this.add
@@ -42,7 +39,7 @@ export class MainMenu extends Scene {
             .on('pointerout', () => button.setStyle({ backgroundColor: '#444444' }))
             .on('pointerdown', onClick);
           return button;
-        }; // TERMINA CREAR BOTON
+        }; 
 
     this.empezar = createButton(this.scale.height * 0.6, 'Empezar', '#00ff00', () => {
       this.scene.start('Game');
@@ -53,10 +50,7 @@ export class MainMenu extends Scene {
 
   }
 
-  /**
-   * Positions and (lightly) scales all UI elements based on the current game size.
-   * Call this from create() and from any resize events.
-   */
+  // Funcion para escalar los elementos graficos del main menu
   private refreshLayout(): void {
     const { width, height } = this.scale;
 
