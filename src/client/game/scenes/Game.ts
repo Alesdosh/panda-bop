@@ -40,13 +40,65 @@ export class Game extends Scene {
 
     const scaleFactor = this.calculateScaleFactor(300, 300);
 
-    this.dragButtonManager.createSimpleButton(
-      'spiral1',
-      300 * 0.4,
-      300 * 0.5,
+    // Example 1: Individual buttons with different rotations
+    this.dragButtonManager.createSimpleButtonDegrees(
+      'zigzag_0',
+      150,
+      150,
       PathType.ZIGZAG,
-      80,
-      scaleFactor
+      60,
+      scaleFactor,
+      0
+    );
+    this.dragButtonManager.createSimpleButtonDegrees(
+      'zigzag_45',
+      300,
+      150,
+      PathType.ZIGZAG,
+      60,
+      scaleFactor,
+      45
+    );
+    this.dragButtonManager.createSimpleButtonDegrees(
+      'zigzag_90',
+      450,
+      150,
+      PathType.ZIGZAG,
+      60,
+      scaleFactor,
+      90
+    );
+
+    // Example 2: Hearts with different orientations
+    this.dragButtonManager.createSimpleButtonDegrees(
+      'heart_0',
+      150,
+      300,
+      PathType.HEART,
+      60,
+      scaleFactor,
+      0
+    );
+    this.dragButtonManager.createSimpleButtonDegrees(
+      'heart_180',
+      300,
+      300,
+      PathType.HEART,
+      60,
+      scaleFactor,
+      180
+    );
+
+    // Example 3: Circular arrangement with auto-rotation
+    this.dragButtonManager.createButtonCircle(
+      600,
+      300, // center
+      80, // radius
+      6, // 6 buttons
+      [PathType.SPIRAL, PathType.S_CURVE],
+      40, // size
+      scaleFactor,
+      true // auto-rotate to face outward
     );
 
     // Setup responsive layout
@@ -62,9 +114,9 @@ export class Game extends Scene {
   private initializeDragButtonManager(): void {
     this.dragButtonManager = new DragButtonManager(this, {
       defaultButtonConfig: {
-        tolerance: 60,
-        maxBackwardMovement: 0.05,
-        failureTimeoutMs: 300,
+        tolerance: 40, // Reduced tolerance - must be closer to path
+        maxBackwardMovement: 0.02, // Reduced backward movement - less correction allowed
+        failureTimeoutMs: 200, // Faster failure - less time off path
       },
       defaultAutoRecreate: true,
       defaultRecreateDelay: 1500,

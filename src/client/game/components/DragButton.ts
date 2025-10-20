@@ -27,6 +27,7 @@ export class DragButton {
   private isCompleted: boolean = false;
   private pathProgress: number = 0;
   private failureTimeout: Phaser.Time.TimerEvent | null = null;
+  private buttonRotation: number = 0; // Rotation in radians for the entire button
 
   // Callbacks
   private onCompleteCallback?: () => void;
@@ -48,11 +49,19 @@ export class DragButton {
     this.config = config;
   }
 
-  create(centerX: number, centerY: number, scaleFactor: number = 1, pathConfig?: import('./PathManager').PathConfig): void {
+  create(centerX: number, centerY: number, scaleFactor: number = 1, pathConfig?: import('./PathManager').PathConfig, rotation: number = 0): void {
     if (this.isCompleted) return;
 
-    // Create path
-    this.pathManager.createPath(centerX, centerY, scaleFactor, pathConfig);
+    // Store rotation
+    this.buttonRotation = rotation;
+
+    // Create path with rotation applied
+    const pathConfigWithRotation = pathConfig ? {
+      ...pathConfig,
+      rotation: (pathConfig.rotation || 0) + rotation
+    } : { type: 'curved_up' as any, size: 100, rotation };
+
+    this.pathManager.createPath(centerX, centerY, scaleFactor, pathConfigWithRotation);
 
     // Create graphics
     this.pathGraphics = this.scene.add.graphics();
@@ -65,14 +74,17 @@ export class DragButton {
 
     this.container = this.scene.add.container(startPoint.x, startPoint.y);
 
+    // Apply rotation to the entire container
+    this.container.setRotation(rotation);
+
     // Create the circle graphics
     this.circleGraphics = this.scene.add.graphics();
     this.drawCircle();
 
     this.container.add(this.circleGraphics);
 
-    // Make it interactive
-    this.container.setSize(70, 70);
+    // Make it interactive - smaller but still usable hit area
+    this.container.setSize(40, 40); // Reduced to match smaller circle
     this.container.setInteractive({ draggable: true });
 
     // Add event listeners
@@ -83,14 +95,26 @@ export class DragButton {
     if (!this.circleGraphics) return;
 
     this.circleGraphics.clear();
-    this.circleGraphics.fillStyle(0x4a90e2);
-    this.circleGraphics.fillCircle(0, 0, 25);
-    this.circleGraphics.lineStyle(3, 0xffffff);
-    this.circleGraphics.strokeCircle(0, 0, 25);
-
-    // Add glow effect
-    this.circleGraphics.lineStyle(6, 0x4a90e2, 0.3);
-    this.circleGraphics.strokeCircle(0, 0, 35);
+    
+    // Outer glow ring
+    this.circleGraphics.lineStyle(4, 0x4a90e2, 0.15);
+    this.circleGraphics.strokeCircle(0, 0, 22);
+    
+    // Middle glow ring
+    this.circleGraphics.lineStyle(3, 0x4a90e2, 0.3);
+    this.circleGraphics.strokeCircle(0, 0, 18);
+    
+    // Main circle - smaller and brighter
+    this.circleGraphics.fillStyle(0x5aa0f2); // Slightly brighter blue
+    this.circleGraphics.fillCircle(0, 0, 12); // Reduced from 15 to 12
+    
+    // White border
+    this.circleGraphics.lineStyle(2, 0xffffff, 0.9);
+    this.circleGraphics.strokeCircle(0, 0, 12);
+    
+    // Inner highlight
+    this.circleGraphics.fillStyle(0xffffff, 0.4);
+    this.circleGraphics.fillCircle(-2, -2, 4); // Small highlight dot
   }
 
   private setupEventListeners(): void {
@@ -166,22 +190,21 @@ export class DragButton {
   private updatePosition(cursorX: number, cursorY: number): void {
     if (!this.container || this.isCompleted) return;
 
-    const targetProgress = this.pathManager.getProgressFromPosition(cursorX, cursorY);
-    const minAllowedProgress = Math.max(0, this.pathProgress - this.config.maxBackwardMovement);
-
-    const pathPosition = this.pathManager.getPositionOnPath(targetProgress);
-    const distanceToPath = Phaser.Math.Distance.Between(
-      cursorX,
-      cursorY,
-      pathPosition.x,
-      pathPosition.y
+    // Use sequential validation - only allow moving to the next valid position
+    const maxAdvancement = 0.03; // Allow advancing only 3% of the path at a time - forces sequential movement
+    const nextValidProgress = this.pathManager.getNextValidProgress(
+      cursorX, 
+      cursorY, 
+      this.pathProgress, 
+      maxAdvancement, 
+      this.config.tolerance
     );
 
-    if (targetProgress >= minAllowedProgress && distanceToPath <= this.config.tolerance) {
-      // Cursor is on path and moving forward
+    if (nextValidProgress !== null) {
+      // Valid forward movement found
       this.clearFailureTimeout();
 
-      this.pathProgress = targetProgress;
+      this.pathProgress = nextValidProgress;
       const newPosition = this.pathManager.getPositionOnPath(this.pathProgress);
       this.container.setPosition(newPosition.x, newPosition.y);
 
@@ -198,9 +221,51 @@ export class DragButton {
         this.triggerCompletion();
       }
     } else {
-      // Cursor is off path
-      if (!this.failureTimeout && this.isPointerDown) {
-        this.startFailureTimeout();
+      // Check if we can allow small backward movement for correction
+      const minAllowedProgress = Math.max(0, this.pathProgress - this.config.maxBackwardMovement);
+      const currentPathPosition = this.pathManager.getPositionOnPath(this.pathProgress);
+      const distanceToCurrentPosition = Phaser.Math.Distance.Between(
+        cursorX,
+        cursorY,
+        currentPathPosition.x,
+        currentPathPosition.y
+      );
+
+      // Allow staying near current position for small corrections
+      if (distanceToCurrentPosition <= this.config.tolerance) {
+        this.clearFailureTimeout();
+        // Don't update progress, just stay at current position
+      } else {
+        // Check if we can move backward slightly for correction
+        const samples = 20;
+        let foundValidBackward = false;
+
+        for (let i = 1; i <= samples; i++) {
+          const backwardProgress = this.pathProgress - (i / samples) * this.config.maxBackwardMovement;
+          if (backwardProgress >= minAllowedProgress) {
+            if (this.pathManager.isPositionOnPath(cursorX, cursorY, backwardProgress, this.config.tolerance)) {
+              this.clearFailureTimeout();
+              this.pathProgress = backwardProgress;
+              const newPosition = this.pathManager.getPositionOnPath(this.pathProgress);
+              this.container.setPosition(newPosition.x, newPosition.y);
+              
+              // Update progress visualization
+              if (this.progressGraphics) {
+                this.pathManager.drawProgressPath(this.progressGraphics, this.pathProgress);
+              }
+              
+              foundValidBackward = true;
+              break;
+            }
+          }
+        }
+
+        if (!foundValidBackward) {
+          // Cursor is off path and not near any valid position
+          if (!this.failureTimeout && this.isPointerDown) {
+            this.startFailureTimeout();
+          }
+        }
       }
     }
   }
@@ -267,19 +332,25 @@ export class DragButton {
   updateLayout(centerX: number, centerY: number, scaleFactor: number, pathConfig?: import('./PathManager').PathConfig): void {
     if (this.isCompleted) return;
 
-    // Recreate path with new dimensions
-    this.pathManager.createPath(centerX, centerY, scaleFactor, pathConfig);
+    // Recreate path with new dimensions and maintain rotation
+    const pathConfigWithRotation = pathConfig ? {
+      ...pathConfig,
+      rotation: (pathConfig.rotation || 0) + this.buttonRotation
+    } : { type: 'curved_up' as any, size: 100, rotation: this.buttonRotation };
+
+    this.pathManager.createPath(centerX, centerY, scaleFactor, pathConfigWithRotation);
 
     // Redraw path
     if (this.pathGraphics) {
       this.pathManager.drawPath(this.pathGraphics);
     }
 
-    // Update button position
+    // Update button position and maintain rotation
     if (this.container) {
       const currentPosition = this.pathManager.getPositionOnPath(this.pathProgress);
       this.container.setPosition(currentPosition.x, currentPosition.y);
       this.container.setScale(scaleFactor);
+      this.container.setRotation(this.buttonRotation); // Maintain rotation
     }
   }
 

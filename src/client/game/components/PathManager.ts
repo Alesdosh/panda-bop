@@ -288,13 +288,96 @@ export class PathManager {
     return closestProgress;
   }
 
+  /**
+   * Gets the next valid progress position that the user can move to
+   * This enforces sequential movement along the path
+   */
+  getNextValidProgress(
+    cursorX: number, 
+    cursorY: number, 
+    currentProgress: number, 
+    maxAdvancement: number = 0.1,
+    tolerance: number = 60
+  ): number | null {
+    // Define how far ahead we can look (as a percentage of total path)
+    const maxLookAhead = Math.min(currentProgress + maxAdvancement, 1.0);
+    
+    // Sample points only in the valid range (current position to max look ahead)
+    const samples = 50;
+    let bestProgress = currentProgress;
+    let bestDistance = Infinity;
+    
+    for (let i = 0; i <= samples; i++) {
+      const progress = currentProgress + (i / samples) * (maxLookAhead - currentProgress);
+      const pathPos = this.getPositionOnPath(progress);
+      const distance = Phaser.Math.Distance.Between(cursorX, cursorY, pathPos.x, pathPos.y);
+      
+      // Only consider positions that are within tolerance and ahead of current position
+      if (distance <= tolerance && progress > currentProgress && distance < bestDistance) {
+        bestDistance = distance;
+        bestProgress = progress;
+      }
+    }
+    
+    // Return the best progress if we found a valid position, otherwise null
+    return bestProgress > currentProgress ? bestProgress : null;
+  }
+
+  /**
+   * Checks if a position is close enough to a specific progress point on the path
+   */
+  isPositionOnPath(x: number, y: number, progress: number, tolerance: number = 60): boolean {
+    const pathPosition = this.getPositionOnPath(progress);
+    const distance = Phaser.Math.Distance.Between(x, y, pathPosition.x, pathPosition.y);
+    return distance <= tolerance;
+  }
+
   drawPath(graphics: Phaser.GameObjects.Graphics): void {
     if (!graphics || this.pathPoints.length === 0) return;
 
     graphics.clear();
-    graphics.lineStyle(4, 0x666666, 0.8);
+    
+    // Draw background path (wider, darker)
+    graphics.lineStyle(8, 0x333333, 0.6);
+    this.drawPathLine(graphics);
+    
+    // Draw main path (brighter, more visible)
+    graphics.lineStyle(5, 0xaaaaaa, 0.9);
+    this.drawPathLine(graphics);
+    
+    // Draw center guide line (thin, bright)
+    graphics.lineStyle(2, 0xffffff, 0.8);
+    this.drawPathLine(graphics);
 
-    // Draw the curved path
+    // Draw enhanced start and end indicators
+    const startPoint = this.pathPoints[0];
+    if (startPoint) {
+      // Start indicator - green with border
+      graphics.fillStyle(0x00ff00, 0.9);
+      graphics.fillCircle(startPoint.x, startPoint.y, 12);
+      graphics.lineStyle(2, 0xffffff);
+      graphics.strokeCircle(startPoint.x, startPoint.y, 12);
+      
+      // Start label
+      graphics.fillStyle(0xffffff);
+      graphics.fillCircle(startPoint.x, startPoint.y, 4);
+    }
+
+    const endPoint = this.pathPoints[this.pathPoints.length - 1];
+    if (endPoint) {
+      // End indicator - red with border
+      graphics.fillStyle(0xff0000, 0.9);
+      graphics.fillCircle(endPoint.x, endPoint.y, 12);
+      graphics.lineStyle(2, 0xffffff);
+      graphics.strokeCircle(endPoint.x, endPoint.y, 12);
+      
+      // End label
+      graphics.fillStyle(0xffffff);
+      graphics.fillCircle(endPoint.x, endPoint.y, 4);
+    }
+  }
+
+  private drawPathLine(graphics: Phaser.GameObjects.Graphics): void {
     const startPoint = this.pathPoints[0];
     if (!startPoint) return;
 
@@ -309,16 +392,6 @@ export class PathManager {
     }
 
     graphics.strokePath();
-
-    // Draw start and end indicators
-    graphics.fillStyle(0x00ff00, 0.7);
-    graphics.fillCircle(startPoint.x, startPoint.y, 8);
-
-    const endPoint = this.pathPoints[this.pathPoints.length - 1];
-    if (endPoint) {
-      graphics.fillStyle(0xff0000, 0.7);
-      graphics.fillCircle(endPoint.x, endPoint.y, 8);
-    }
   }
 
   drawProgressPath(graphics: Phaser.GameObjects.Graphics, progress: number): void {
@@ -328,9 +401,23 @@ export class PathManager {
 
     if (progress <= 0) return;
 
-    // Draw the completed portion of the path in a different color
-    graphics.lineStyle(6, 0x4a90e2, 0.8);
+    const startPoint = this.pathPoints[0];
+    if (!startPoint) return;
 
+    // Draw background progress (wider)
+    graphics.lineStyle(10, 0x4a90e2, 0.3);
+    this.drawProgressLine(graphics, progress);
+
+    // Draw main progress line (bright blue)
+    graphics.lineStyle(6, 0x4a90e2, 0.9);
+    this.drawProgressLine(graphics, progress);
+
+    // Draw center progress line (bright white)
+    graphics.lineStyle(2, 0xffffff, 0.8);
+    this.drawProgressLine(graphics, progress);
+  }
+
+  private drawProgressLine(graphics: Phaser.GameObjects.Graphics, progress: number): void {
     const startPoint = this.pathPoints[0];
     if (!startPoint) return;
 

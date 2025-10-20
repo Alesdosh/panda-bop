@@ -11,6 +11,7 @@ export interface DragButtonDefinition {
   };
   pathConfig: PathConfig;
   buttonConfig?: Partial<DragButtonConfig>;
+  rotation?: number; // Rotation in radians for the entire button (path + circle)
   onComplete?: () => void;
   onFailure?: () => void;
   autoRecreate?: boolean;
@@ -87,7 +88,8 @@ export class DragButtonManager {
       definition.position.x,
       definition.position.y,
       scaleFactor,
-      definition.pathConfig
+      definition.pathConfig,
+      definition.rotation || 0
     );
   }
 
@@ -109,7 +111,8 @@ export class DragButtonManager {
     y: number,
     pathType: PathType,
     size: number = 100,
-    scaleFactor: number = 1
+    scaleFactor: number = 1,
+    rotation: number = 0
   ): void {
     const definition: DragButtonDefinition = {
       id,
@@ -118,9 +121,26 @@ export class DragButtonManager {
         type: pathType,
         size,
       },
+      rotation,
     };
 
     this.createButton(definition, scaleFactor);
+  }
+
+  /**
+   * Creates a simple button with rotation in degrees (convenience method)
+   */
+  createSimpleButtonDegrees(
+    id: string,
+    x: number,
+    y: number,
+    pathType: PathType,
+    size: number = 100,
+    scaleFactor: number = 1,
+    rotationDegrees: number = 0
+  ): void {
+    const rotationRadians = (rotationDegrees * Math.PI) / 180;
+    this.createSimpleButton(id, x, y, pathType, size, scaleFactor, rotationRadians);
   }
 
   /**
@@ -134,7 +154,8 @@ export class DragButtonManager {
     spacing: number,
     pathTypes: PathType[],
     size: number = 80,
-    scaleFactor: number = 1
+    scaleFactor: number = 1,
+    rotations?: number[] // Optional array of rotations for each button
   ): void {
     let pathTypeIndex = 0;
 
@@ -143,10 +164,11 @@ export class DragButtonManager {
         const x = startX + col * spacing;
         const y = startY + row * spacing;
         const pathType = pathTypes[pathTypeIndex % pathTypes.length];
+        const rotation = rotations ? rotations[pathTypeIndex % rotations.length] : 0;
         const id = `grid_${row}_${col}`;
 
         if (pathType) {
-          this.createSimpleButton(id, x, y, pathType, size, scaleFactor);
+          this.createSimpleButton(id, x, y, pathType, size, scaleFactor, rotation);
         }
         pathTypeIndex++;
       }
@@ -163,17 +185,19 @@ export class DragButtonManager {
     count: number,
     pathTypes: PathType[],
     size: number = 80,
-    scaleFactor: number = 1
+    scaleFactor: number = 1,
+    autoRotate: boolean = true // Automatically rotate each button to face outward
   ): void {
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
       const x = centerX + Math.cos(angle) * radius;
       const y = centerY + Math.sin(angle) * radius;
       const pathType = pathTypes[i % pathTypes.length];
+      const rotation = autoRotate ? angle : 0; // Rotate to face outward from center
       const id = `circle_${i}`;
 
       if (pathType) {
-        this.createSimpleButton(id, x, y, pathType, size, scaleFactor);
+        this.createSimpleButton(id, x, y, pathType, size, scaleFactor, rotation);
       }
     }
   }
